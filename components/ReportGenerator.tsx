@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import Papa from 'papaparse';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { CommunityWithMetadata } from '../types';
 import { DownloadIcon } from './icons';
@@ -33,7 +33,7 @@ export const ReportGenerator = ({ data, fileName: baseFileName = 'developer_comm
 
         if (format === 'csv') {
             const csv = Papa.unparse(flattenedData);
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-s-8,' });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.setAttribute('download', `${fileName}.csv`);
@@ -63,7 +63,6 @@ export const ReportGenerator = ({ data, fileName: baseFileName = 'developer_comm
     return (
         <div className="flex items-center space-x-2">
             <button onClick={() => handleExport('csv')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
-            <button onClick={() => handleExport('csv')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> Excel</button>
             <button onClick={() => handleExport('pdf')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> PDF</button>
 
             {/* Hidden table for PDF export */}

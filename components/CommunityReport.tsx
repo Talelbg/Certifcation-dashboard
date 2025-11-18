@@ -1,13 +1,11 @@
 import React, { useState, useMemo, useRef } from 'react';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import Papa from 'papaparse';
 import { GoogleGenAI } from '@google/genai';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CommunityWithMetadata, DateRange, DeveloperRecord } from '../types';
 import { UsersIcon, DownloadIcon, SparklesIcon, ChartBarIcon, CopyIcon } from './icons';
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
 interface CommunityReportProps {
     communities: CommunityWithMetadata[];
@@ -47,7 +45,7 @@ const downloadListAsCsv = (data: DeveloperRecord[], filename: string) => {
         'Completed At': dev.completedAt ? dev.completedAt.toISOString() : ''
     }));
     const csv = Papa.unparse(dataForCsv);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-s-8,' });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.setAttribute('download', filename);
@@ -55,46 +53,6 @@ const downloadListAsCsv = (data: DeveloperRecord[], filename: string) => {
     link.click();
     document.body.removeChild(link);
 };
-
-const downloadListAsPdf = async (data: DeveloperRecord[], filename: string, title: string) => {
-    if (data.length === 0) {
-        alert(`No data available to download.`);
-        return;
-    }
-    
-    const doc = new jsPDF();
-    doc.text(title, 14, 16);
-    
-    const tableColumn = ["Email", "Community", "Country", "Progress", "Enrolled On"];
-    const tableRows: (string|number)[][] = [];
-
-    data.forEach(dev => {
-        const devData = [
-            dev.developerId,
-            dev.communityCode,
-            dev.country,
-            `${dev.certificationProgress}%`,
-            dev.enrollmentDate.toLocaleDateString(),
-        ];
-        tableRows.push(devData);
-    });
-
-    (doc as any).autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: 20,
-        theme: 'grid',
-        styles: {
-            fontSize: 8
-        },
-        headStyles: {
-            fillColor: [79, 70, 229]
-        }
-    });
-    
-    doc.save(filename);
-};
-
 
 export const CommunityReport = ({ communities, dateRange }: CommunityReportProps) => {
     const [selectedCommunityCode, setSelectedCommunityCode] = useState<string | null>(null);
@@ -150,6 +108,11 @@ export const CommunityReport = ({ communities, dateRange }: CommunityReportProps
         setAnalysis(null);
 
         try {
+            if (!process.env.API_KEY) {
+                throw new Error("API_KEY environment variable not set. Please configure it to use this feature.");
+            }
+            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+            
             const overallAverageProgress = communities.reduce((sum, c) => sum + c.averageProgress, 0) / (communities.length || 1);
             const communitiesWithCompletion = communities.filter(c => c.averageCompletionDays != null);
             const overallAverageCompletionDays = communitiesWithCompletion.reduce((sum, c) => sum + c.averageCompletionDays!, 0) / (communitiesWithCompletion.length || 1);
@@ -246,7 +209,7 @@ export const CommunityReport = ({ communities, dateRange }: CommunityReportProps
         pdf.save(`community_report_${selectedCommunityCode}_${new Date().toISOString().split('T')[0]}.pdf`);
     };
 
-    const handleDownloadList = (type: 'certified' | 'subscribers', format: 'csv' | 'pdf') => {
+    const handleDownloadList = (type: 'certified' | 'subscribers') => {
         if (!selectedCommunity) return;
 
         const list = type === 'certified' 
@@ -254,20 +217,9 @@ export const CommunityReport = ({ communities, dateRange }: CommunityReportProps
             : selectedCommunity.developers.filter(dev => dev.subscribed);
         
         const timestamp = new Date().toISOString().split('T')[0];
-        const filename = `${type}_${selectedCommunity.code}_${timestamp}`;
-        const title = `${type.charAt(0).toUpperCase() + type.slice(1)} for ${selectedCommunity.code}`;
-
-        if (format === 'csv') {
-            downloadListAsCsv(list, `${filename}.csv`);
-        } else if (format === 'pdf') {
-            // Note: jspdf-autotable is not in dependencies, so we create a basic text PDF or use html2canvas for a visual one.
-            // For a better data export, CSV is recommended. This is a simplified placeholder.
-            const dataForPdf = list.map(dev => `${dev.developerId}, ${dev.country}, Progress: ${dev.certificationProgress}%`).join('\n');
-            const pdf = new jsPDF();
-            pdf.text(title, 10, 10);
-            pdf.text(dataForPdf, 10, 20);
-            pdf.save(`${filename}.pdf`);
-        }
+        const filename = `${type}_${selectedCommunity.code}_${timestamp}.csv`;
+        
+        downloadListAsCsv(list, filename);
     };
 
     return (
@@ -397,18 +349,14 @@ export const CommunityReport = ({ communities, dateRange }: CommunityReportProps
                             <h3 className="text-lg font-bold text-brand-text mb-2">Certified Members List</h3>
                             <p className="text-sm text-brand-text-secondary mb-4">Export the list of all 100% certified developers in this community.</p>
                             <div className="flex items-center space-x-2">
-                                <button onClick={() => handleDownloadList('certified', 'csv')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
-                                <button onClick={() => handleDownloadList('certified', 'csv')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> Excel</button>
-                                <button onClick={() => handleDownloadList('certified', 'pdf')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> PDF</button>
+                                <button onClick={() => handleDownloadList('certified')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
                             </div>
                         </div>
                          <div className="bg-brand-bg p-4 rounded-lg border border-brand-border">
                             <h3 className="text-lg font-bold text-brand-text mb-2">Subscribers List</h3>
                             <p className="text-sm text-brand-text-secondary mb-4">Export the list of all developers who opted-in for marketing.</p>
                             <div className="flex items-center space-x-2">
-                                <button onClick={() => handleDownloadList('subscribers', 'csv')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
-                                <button onClick={() => handleDownloadList('subscribers', 'csv')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> Excel</button>
-                                <button onClick={() => handleDownloadList('subscribers', 'pdf')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> PDF</button>
+                                <button onClick={() => handleDownloadList('subscribers')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
                             </div>
                         </div>
                     </div>

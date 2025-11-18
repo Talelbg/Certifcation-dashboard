@@ -73,7 +73,8 @@ export const MetricsDashboard = ({ data, developerData, topPerformingCommunities
   return (
     <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-             <SummaryCard title="Registered Developers" value={registeredDevelopers} icon={<UsersIcon />} />
+            <SummaryCard title="Registered Developers" value={registeredDevelopers} icon={<UsersIcon />} />
+            <SummaryCard title="Total Certified" value={totalCertified} icon={<AcademicCapIcon />} />
             <SummaryCard title="Users Started Course" value={`${usersStartedCourse} ${usersStartedPercentage}`} icon={<ChartBarIcon />} />
             <SummaryCard title="Active Communities" value={activeCommunities} icon={<UsersIcon />} />
             <SummaryCard title="Avg. Completion Time" value={overallAverageCompletionDays ? `${overallAverageCompletionDays.toFixed(1)} days` : 'N/A'} icon={<GlobeIcon />} />

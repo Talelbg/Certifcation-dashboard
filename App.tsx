@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useRef } from 'react';
-import jsPDF from 'jspdf';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
+import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import Papa from 'papaparse';
 import { DeveloperRecord, DateRange, CommunityMetaData, Event } from './types';
@@ -15,7 +15,6 @@ import { useFilters } from './hooks/useFilters';
 import { useCommunityData } from './hooks/useCommunityData';
 import { useDeveloperMetrics } from './hooks/useDeveloperMetrics';
 import { DownloadIcon, ShieldExclamationIcon } from './components/icons';
-
 
 const RapidCompletionReport = ({ developers }: { developers: DeveloperRecord[] }) => {
     const reportTableRef = useRef<HTMLTableElement>(null);
@@ -81,7 +80,6 @@ const RapidCompletionReport = ({ developers }: { developers: DeveloperRecord[] }
                 </div>
                 <div className="flex items-center space-x-2">
                     <button onClick={() => handleDownload('csv')} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> CSV</button>
-                    <button onClick={() => handleDownload('csv')} className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> Excel</button>
                     <button onClick={() => handleDownload('pdf')} className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-3 text-xs rounded-lg flex items-center transition-colors duration-200"><DownloadIcon className="h-4 w-4 mr-1"/> PDF</button>
                 </div>
             </div>
@@ -118,6 +116,14 @@ const RapidCompletionReport = ({ developers }: { developers: DeveloperRecord[] }
     );
 };
 
+// Helper to format dates to YYYY-MM-DD using local time to prevent UTC shifting
+const formatDateForInput = (date: Date | null) => {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 const FilterControls = ({
   dateRange,
@@ -128,9 +134,19 @@ const FilterControls = ({
 }) => {
     return (
         <div className="flex items-center space-x-4">
-            <input type="date" value={dateRange.from ? dateRange.from.toISOString().split('T')[0] : ''} onChange={e => onDateChange(e, 'from')} className="bg-brand-surface border border-brand-border rounded px-2 py-1.5" />
+            <input 
+                type="date" 
+                value={formatDateForInput(dateRange.from)} 
+                onChange={e => onDateChange(e, 'from')} 
+                className="bg-brand-surface border border-brand-border rounded px-2 py-1.5" 
+            />
             <span className="text-brand-text-secondary">to</span>
-            <input type="date" value={dateRange.to ? dateRange.to.toISOString().split('T')[0] : ''} onChange={e => onDateChange(e, 'to')} className="bg-brand-surface border border-brand-border rounded px-2 py-1.5" />
+            <input 
+                type="date" 
+                value={formatDateForInput(dateRange.to)} 
+                onChange={e => onDateChange(e, 'to')} 
+                className="bg-brand-surface border border-brand-border rounded px-2 py-1.5" 
+            />
         </div>
     );
 };
@@ -169,8 +185,21 @@ function App() {
   ]);
 
   const { dateRange, handleDateChange, setInitialDateRange } = useFilters();
+
+  // Filter developerData based on the selected dateRange for periodic analysis
+  const filteredDeveloperData = useMemo(() => {
+    return developerData.filter(dev => {
+      const devDate = dev.enrollmentDate.getTime();
+      const from = dateRange.from?.getTime();
+      const to = dateRange.to?.getTime();
+      if (from && devDate < from) return false;
+      if (to && devDate > to) return false;
+      return true;
+    });
+  }, [developerData, dateRange]);
+
   const { processedCommunityData, topPerformingCommunities, overallAverageCompletionDays } = useCommunityData(developerData, dateRange, communityMetaData);
-  const { potentialFakeAccounts, rapidCompletions } = useDeveloperMetrics(developerData);
+  const { potentialFakeAccounts, rapidCompletions } = useDeveloperMetrics(filteredDeveloperData);
 
 
   const handleSaveEvent = (event: Omit<Event, 'id'>, id?: string) => {
@@ -252,7 +281,7 @@ function App() {
                     </nav>
                 </div>
                 <div className="mt-6">
-                    {activeTab === 'dashboard' && <MetricsDashboard data={processedCommunityData} developerData={developerData} topPerformingCommunities={topPerformingCommunities} overallAverageCompletionDays={overallAverageCompletionDays} potentialFakeAccounts={potentialFakeAccounts} rapidCompletionsCount={rapidCompletions.count} />}
+                    {activeTab === 'dashboard' && <MetricsDashboard data={processedCommunityData} developerData={filteredDeveloperData} topPerformingCommunities={topPerformingCommunities} overallAverageCompletionDays={overallAverageCompletionDays} potentialFakeAccounts={potentialFakeAccounts} rapidCompletionsCount={rapidCompletions.count} />}
                     {activeTab === 'management' && (
                         <div>
                             <div className="mb-4 p-4 bg-brand-bg rounded-lg border border-brand-border">
@@ -263,8 +292,8 @@ function App() {
                             <ProgressByCommunityTable data={processedCommunityData} onToggleImportant={handleToggleImportant} onSetFollowUp={handleSetFollowUp} />
                         </div>
                     )}
-                    {activeTab === 'email' && <EmailManager communities={processedCommunityData} developerData={developerData} />}
-                    {activeTab === 'membership' && <MembershipDashboard developerData={developerData} />}
+                    {activeTab === 'email' && <EmailManager communities={processedCommunityData} developerData={filteredDeveloperData} />}
+                    {activeTab === 'membership' && <MembershipDashboard developerData={filteredDeveloperData} />}
                     {activeTab === 'events' && <EventsDashboard events={events} onSave={handleSaveEvent} onDelete={handleDeleteEvent} />}
                     {activeTab === 'reporting' && <CommunityReport communities={processedCommunityData} dateRange={dateRange} />}
                     {activeTab === 'audits' && <RapidCompletionReport developers={rapidCompletions.developers} />}
