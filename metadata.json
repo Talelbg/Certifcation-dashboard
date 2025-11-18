@@ -1,0 +1,5 @@
+{
+  "name": "Developer Community Dashboard",
+  "description": "A web-based automation system that enables tracking and management of developer communities and their certification progress via CSV file uploads.",
+  "requestFramePermissions": []
+}
